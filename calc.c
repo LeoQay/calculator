@@ -57,12 +57,9 @@ void input_mgr (Calc *calc)
         if (-1 == process_str(calc))
         {
             printf("Finish state:\n");
+            print_dict(calc);
             is_end = 1;
         }
-
-        printf("\nDictionary:\n");
-        print_var_set(calc->vars);
-        printf("\n");
     } while (!is_end);
 }
 
@@ -71,9 +68,18 @@ int process_str (Calc *calc)
 {
     Elem *var_name;
 
-    if (0 == check_end(calc))
+    printf(">>>");
+
+    if (0 == check_str_input(calc, "@end"))
     {
         return -1;
+    }
+
+    if (0 == check_str_input(calc, "@dict"))
+    {
+        print_dict(calc);
+        miss_line(calc);
+        return 0;
     }
 
     if (NULL != (var_name = check_var(calc)))
@@ -108,13 +114,15 @@ void do_calc(Calc *calc)
 
     int ret = expression(calc);
 
+    up_used(calc);
+
     if (ret != 0 || calc->cur_t != END)
     {
         if (calc->cur_t != END) miss_line(calc);
 
         if (calc->result != NULL) free(calc->result);
 
-        if (calc->cur_t == CLOSE_BRACKET) ret = MISS_OPEN_BRACKET;
+        if (ret == 0 && calc->cur_t == CLOSE_BRACKET) ret = MISS_OPEN_BRACKET;
 
         error(calc, ret);
 
@@ -142,8 +150,8 @@ void error(Calc *calc, int ret_code)
             calc->result = elem_str(ERROR, "Miss open bracket");
             break;
         case EXPR_UNEXPECT:
-        case INVALID_OP:
-            calc->result = elem_str(ERROR, "Invalid operation");
+        case INVALID_TOKEN:
+            calc->result = elem_str(ERROR, "Invalid token");
             break;
         case EMPTY_MUL:
             calc->result = elem_str(ERROR, "Missing operand");
@@ -421,6 +429,7 @@ int get_token(Calc *calc)
 
         if (calc->cur_t == -1)
         {
+            calc->cur_t = WRONG;
             return VAR_NAME_ERROR;
         }
 
@@ -435,6 +444,7 @@ int get_token(Calc *calc)
 
         if (calc->cur_t == -1)
         {
+            calc->cur_t = WRONG;
             return NUMBER_TOKEN_ERROR;
         }
 
@@ -467,7 +477,8 @@ int get_token(Calc *calc)
                 break;
             default:
                 // unexpected
-                return INVALID_OP;
+                calc->cur_t = WRONG;
+                return INVALID_TOKEN;
         }
 
         return 0;
@@ -938,7 +949,7 @@ Elem* check_var (Calc *calc)
 
     if (calc->cur_t != VAR)
     {
-        if (calc->cur_t != END) put_str_back(calc, calc->cur_str);
+        put_str_back(calc, calc->cur_str);
         return NULL;
     }
 
@@ -972,17 +983,24 @@ void print_var_set(VarSet *set)
 }
 
 
-int check_end(Calc *calc)
+void print_dict(Calc *calc)
 {
-    char end[] = "@end";
-    char buf[5];
+    printf("\nDictionary:\n");
+    print_var_set(calc->vars);
+    printf("\n");
+}
+
+
+int check_str_input(Calc *calc, char *src)
+{
+    char buf[100];
 
     int cur;
 
     while (cur = fgetc(calc->stream), isspace(cur) && cur != '\n' && cur != EOF);
 
-    int req_len = 4;
-    int len = 0;
+    ulong req_len = strlen(src);
+    int len;
 
     if (cur == '\n')
     {
@@ -1006,7 +1024,7 @@ int check_end(Calc *calc)
 
     if (cur != EOF) ungetc(cur, calc->stream);
 
-    if (len < req_len || 0 != strcmp(end, buf))
+    if (len < req_len || 0 != strcmp(src, buf))
     {
         put_str_back(calc, buf);
         return -1;

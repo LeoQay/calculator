@@ -45,7 +45,7 @@ typedef long long int_type;
 typedef long double float_type;
 
 typedef enum {
-    INVALID_OP = 1,
+    INVALID_TOKEN = 1,
     MUL_UNEXPECT = 2,
     MISS_CLOSE_PARENT = 3,
     TERM_SPEC_ERR = 4,
@@ -59,6 +59,7 @@ typedef enum {
 
 
 typedef enum {
+    WRONG,
     PLUS,
     MINUS,
     MUL,
@@ -114,6 +115,7 @@ void get_var (FILE *stream, char* dest, int max_len, int *what);
 Elem *replace_var(Calc *calc, Elem *elem);
 int exec_stack(Calc *calc);
 
+void print_dict(Calc *calc);
 void print_var_set(VarSet* varSet);
 void print_stack(Stack *stack);
 void print_elem(Elem *elem);
@@ -127,4 +129,4 @@ Elem* elem_float(float_type val);
 void miss_line(Calc *calc);
 void put_str_back(Calc *calc, char *str);
 Elem* check_var (Calc *calc);
-int check_end(Calc *calc);
+int check_str_input(Calc *calc, char *src);

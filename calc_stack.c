@@ -18,6 +18,11 @@ Stack* init_stack()
 
 void delete_stack(Stack *stack)
 {
+    if (stack == NULL)
+    {
+        return;
+    }
+
     for (long i = 0; i < stack->size; i++)
     {
         free(stack->stack[i]);

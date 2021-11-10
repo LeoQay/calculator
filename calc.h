@@ -86,6 +86,8 @@ typedef struct {
     TokenType cur_t;
     Elem *result;
     VarSet *vars;
+
+    Stack *buffer;
 } Calc;
 
 
@@ -101,7 +103,7 @@ int down_used(Calc *calc);
 
 void input_mgr (Calc *calc);
 int process_str(Calc *calc);
-void do_calc(Calc *calc);
+int build_postfix(Calc *calc);
 
 int expression (Calc *calc);
 int term (Calc *calc);
@@ -121,6 +123,7 @@ void print_stack(Stack *stack);
 void print_elem(Elem *elem);
 
 Elem* copy_elem(Elem *elem);
+Stack* copy_stack(Stack *stack);
 
 Elem* elem_str(StackType type, char *str);
 Elem* elem_int(int_type val);

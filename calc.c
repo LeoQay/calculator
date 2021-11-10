@@ -18,6 +18,7 @@ Calc* init_calc ()
     calc->stack = init_stack();
     calc->result = NULL;
 
+    calc->buffer = NULL;
 
     calc->vars = init_var_set();
 
@@ -35,6 +36,8 @@ Calc* init_calc ()
 
 void delete_calc(Calc *calc)
 {
+    delete_stack(calc->buffer);
+
     delete_stack(calc->stack);
 
     if (calc->result != NULL)
@@ -66,6 +69,8 @@ void input_mgr (Calc *calc)
 
 int process_str (Calc *calc)
 {
+    int ret;
+
     Elem *var_name;
 
     printf(">>>");
@@ -82,9 +87,46 @@ int process_str (Calc *calc)
         return 0;
     }
 
+    if (0 == check_str_input(calc, "@save"))
+    {
+        delete_stack(calc->buffer);
+        calc->buffer = copy_stack(calc->stack);
+        miss_line(calc);
+        return 0;
+    }
+
+    if (0 == check_str_input(calc, "@use"))
+    {
+        miss_line(calc);
+
+        if (calc->buffer == NULL)
+        {
+            printf("Buffer is empty\n");
+            return 0;
+        }
+
+        delete_stack(calc->stack);
+        calc->stack = copy_stack(calc->buffer);
+
+        if (0 != (ret = exec_stack(calc)))
+        {
+            error(calc, ret);
+        }
+
+        print_elem(calc->result);
+        return 0;
+    }
+
+
     if (NULL != (var_name = check_var(calc)))
     {
-        do_calc(calc);
+        if (0 == build_postfix(calc))
+        {
+            if (0 != (ret = exec_stack(calc)))
+            {
+                error(calc, ret);
+            }
+        }
 
         if (calc->result->type != INT_NUM && calc->result->type != FLOAT_NUM)
         {
@@ -99,7 +141,13 @@ int process_str (Calc *calc)
     }
     else
     {
-        do_calc(calc);
+        if (0 == build_postfix(calc))
+        {
+            if (0 != (ret = exec_stack(calc)))
+            {
+                error(calc, ret);
+            }
+        }
 
         print_elem(calc->result);
     }
@@ -108,7 +156,7 @@ int process_str (Calc *calc)
 }
 
 
-void do_calc(Calc *calc)
+int build_postfix(Calc *calc)
 {
     clear(calc->stack);
 
@@ -127,15 +175,10 @@ void do_calc(Calc *calc)
         error(calc, ret);
 
         clear(calc->stack);
-        return;
+        return 1;
     }
 
-    if (0 != (ret = exec_stack(calc)))
-    {
-        error(calc, ret);
-    }
-
-    clear(calc->stack);
+    return 0;
 }
 
 
@@ -546,7 +589,15 @@ Elem *replace_var(Calc *calc, Elem *elem)
 
                 clear(sub_calc->stack);
 
-                do_calc(sub_calc);
+                int ret;
+
+                if (0 == build_postfix(sub_calc))
+                {
+                    if (0 != (ret = exec_stack(sub_calc)))
+                    {
+                        error(calc, ret);
+                    }
+                }
 
                 if (sub_calc->result->type == INT_NUM ||
                 sub_calc->result->type == FLOAT_NUM)
@@ -1033,4 +1084,22 @@ int check_str_input(Calc *calc, char *src)
     {
         return 0;
     }
+}
+
+
+Stack* copy_stack(Stack *stack)
+{
+    if (stack == NULL)
+    {
+        return NULL;
+    }
+
+    Stack *new_stack = init_stack();
+
+    for (long i = 0; i < stack->size; i++)
+    {
+        push(new_stack, copy_elem(stack->stack[i]));
+    }
+
+    return new_stack;
 }

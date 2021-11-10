@@ -47,12 +47,14 @@ typedef long double float_type;
 typedef enum {
     INVALID_OP = 1,
     MUL_UNEXPECT = 2,
-    MISS_PARENT = 3,
+    MISS_CLOSE_PARENT = 3,
     TERM_SPEC_ERR = 4,
     EMPTY_MUL = 5,
     EXPR_UNEXPECT = 6,
     VAR_NAME_ERROR = 7,
-    NUMBER_TOKEN_ERROR = 8
+    NUMBER_TOKEN_ERROR = 8,
+    MISS_OPEN_BRACKET = 9,
+    ZERO_DIVIDE = 10
 } Exception;
 
 
@@ -85,6 +87,8 @@ typedef struct {
     VarSet *vars;
 } Calc;
 
+
+void error(Calc *calc, int ret_code);
 
 Calc* init_calc();
 void delete_calc(Calc *calc);

@@ -6,6 +6,9 @@
 #include "calc.h"
 
 
+const float_type comp = 0.0000000001;
+
+
 Calc* init_calc ()
 {
     Calc *calc = malloc(sizeof (Calc));
@@ -111,44 +114,61 @@ void do_calc(Calc *calc)
 
         if (calc->result != NULL) free(calc->result);
 
-        switch (ret)
-        {
-            case EXPR_UNEXPECT:
-            case INVALID_OP:
-                calc->result = elem_str(ERROR, "Invalid operation");
-                break;
-            case EMPTY_MUL:
-                calc->result = elem_str(ERROR, "Missing operand");
-                break;
-            case VAR_NAME_ERROR:
-                calc->result = elem_str(ERROR, "Wrong variable token");
-                break;
-            case NUMBER_TOKEN_ERROR:
-                calc->result = elem_str(ERROR, "Wrong number token");
-                break;
-            case 0:
-            case MISS_PARENT:
-                calc->result =
-                        elem_str(ERROR,
-                                 "The balance of brackets is broken");
-                break;
-            case MUL_UNEXPECT:
-            case TERM_SPEC_ERR:
-                calc->result = elem_str(ERROR, "Impossible to reach it");
-                break;
-            default:
-                printf("ret = %d\n", ret);
-                calc->result = elem_str(ERROR, "Error!");
-                break;
-        }
+        if (calc->cur_t == CLOSE_BRACKET) ret = MISS_OPEN_BRACKET;
+
+        error(calc, ret);
 
         clear(calc->stack);
         return;
     }
 
-    exec_stack(calc);
+    if (0 != (ret = exec_stack(calc)))
+    {
+        error(calc, ret);
+    }
 
     clear(calc->stack);
+}
+
+
+void error(Calc *calc, int ret_code)
+{
+    switch (ret_code)
+    {
+        case ZERO_DIVIDE:
+            calc->result = elem_str(ERROR, "Zero dividing");
+            break;
+        case MISS_OPEN_BRACKET:
+            calc->result = elem_str(ERROR, "Miss open bracket");
+            break;
+        case EXPR_UNEXPECT:
+        case INVALID_OP:
+            calc->result = elem_str(ERROR, "Invalid operation");
+            break;
+        case EMPTY_MUL:
+            calc->result = elem_str(ERROR, "Missing operand");
+            break;
+        case VAR_NAME_ERROR:
+            calc->result = elem_str(ERROR, "Wrong variable token");
+            break;
+        case NUMBER_TOKEN_ERROR:
+            calc->result = elem_str(ERROR, "Wrong number token");
+            break;
+        case 0:
+        case MISS_CLOSE_PARENT:
+            calc->result =
+                    elem_str(ERROR,
+                             "Miss close bracket");
+            break;
+        case MUL_UNEXPECT:
+        case TERM_SPEC_ERR:
+            calc->result = elem_str(ERROR, "Impossible to reach it");
+            break;
+        default:
+            printf("Ret code: %d\n", ret_code);
+            calc->result = elem_str(ERROR, "Error!");
+            break;
+    }
 }
 
 
@@ -165,9 +185,7 @@ int expression (Calc *calc)
         switch (calc->cur_t)
         {
             case CLOSE_BRACKET:
-                return 0;
             case END:
-                up_used(calc);
                 return 0;
             case PLUS:
             case MINUS:
@@ -329,9 +347,9 @@ int mul (Calc *calc)
         {
             if (0 != (ret = expression(calc))) { return ret; }
 
-            if (0 != (ret = get_token(calc))) { up_used(calc); return ret; }
+            if (0 != (ret = get_token(calc))) { return ret; }
 
-            if (calc->cur_t != CLOSE_BRACKET) { up_used(calc); return MISS_PARENT; }
+            if (calc->cur_t != CLOSE_BRACKET) { return MISS_CLOSE_PARENT; }
 
             up_used(calc);
 
@@ -596,6 +614,11 @@ int exec_stack(Calc *calc)
                         fa *= fb;
                     } else if (0 == strcmp((char*)cur->data, "/"))
                     {
+                        if (fb < 0 && -1 * fb < comp || fb >= 0 && fb < comp)
+                        {
+                            return ZERO_DIVIDE;
+                        }
+
                         fa /= fb;
                     } else
                     {
@@ -631,6 +654,8 @@ int exec_stack(Calc *calc)
                         fa *= fb;
                     } else if (0 == strcmp((char*)cur->data, "/"))
                     {
+                        if (fb == 0) return ZERO_DIVIDE;
+
                         fa /= fb;
                     } else
                     {

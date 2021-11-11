@@ -41,6 +41,7 @@
 
 #include "var_mgr.h"
 
+typedef unsigned long ulong;
 typedef long long int_type;
 typedef long double float_type;
 

@@ -41,6 +41,8 @@
 
 #include "var_mgr.h"
 
+#define comp 0.0000000001
+
 typedef unsigned long ulong;
 typedef long long int_type;
 typedef long double float_type;
@@ -94,7 +96,7 @@ typedef struct {
 
 void error(Calc *calc, int ret_code);
 
-Calc* init_calc();
+Calc* init_calc(void);
 void delete_calc(Calc *calc);
 
 void set_stream(Calc *calc, FILE *new_stream);

@@ -3,7 +3,7 @@
 #include "calc_stack.h"
 
 
-Stack* init_stack()
+Stack* init_stack(void)
 {
     Stack *new_stack = malloc(sizeof(Stack));
 

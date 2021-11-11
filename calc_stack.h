@@ -22,7 +22,7 @@ typedef struct {
 } Stack;
 
 
-Stack* init_stack();
+Stack* init_stack(void);
 void delete_stack(Stack *stack);
 void push(Stack *stack, Elem *elem);
 Elem* top(Stack *stack);

@@ -6,10 +6,7 @@
 #include "calc.h"
 
 
-const float_type comp = 0.0000000001;
-
-
-Calc* init_calc ()
+Calc* init_calc (void)
 {
     Calc *calc = malloc(sizeof (Calc));
     calc->cur_t = END;
@@ -676,7 +673,7 @@ int exec_stack(Calc *calc)
                         fa *= fb;
                     } else if (0 == strcmp((char*)cur->data, "/"))
                     {
-                        if (fb < 0 && -1 * fb < comp || fb >= 0 && fb < comp)
+                        if ((fb < 0 && -1 * fb < comp) || (fb >= 0 && fb < comp))
                         {
                             return ZERO_DIVIDE;
                         }

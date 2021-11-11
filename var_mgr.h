@@ -6,7 +6,7 @@ typedef struct {
 } VarSet;
 
 
-VarSet* init_var_set();
+VarSet* init_var_set(void);
 void delete_var_set(VarSet *set);
 
 void add_var(VarSet *set, Elem *name, Elem *value);

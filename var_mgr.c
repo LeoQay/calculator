@@ -3,7 +3,7 @@
 
 #include "var_mgr.h"
 
-VarSet* init_var_set()
+VarSet* init_var_set(void)
 {
     VarSet *set = malloc(sizeof (VarSet));
 

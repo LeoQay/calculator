@@ -204,13 +204,11 @@ void error(Calc *calc, int ret_code)
             break;
         case 0:
         case MISS_CLOSE_PARENT:
-            calc->result =
-                    elem_str(ERROR,
-                             "Miss close bracket");
+            calc->result = elem_str(ERROR, "Miss close bracket");
             break;
         case MUL_UNEXPECT:
         case TERM_SPEC_ERR:
-            calc->result = elem_str(ERROR, "Impossible to reach it");
+            calc->result = elem_str(ERROR, "How you fo it");
             break;
         default:
             printf("Ret code: %d\n", ret_code);
@@ -228,7 +226,7 @@ int expression (Calc *calc)
 
     while (1)
     {
-        if (0 != (ret = get_token(calc))) { up_used(calc); return ret; }
+        if (0 != (ret = get_token(calc))) { return ret; }
 
         switch (calc->cur_t)
         {
@@ -260,16 +258,16 @@ int term_spec (Calc *calc)
 {
     int ret;
 
-    if (0 != (ret = get_token(calc))) { up_used(calc); return ret; }
+    if (0 != (ret = get_token(calc))) { return ret; }
 
-    if (calc->cur_t != OPEN_BRACKET) { up_used(calc); return TERM_SPEC_ERR; }
+    if (calc->cur_t != OPEN_BRACKET) { return TERM_SPEC_ERR; }
 
     if (0 != (ret = mul(calc))) { return ret; }
 
     Elem *elem = elem_str(BIN_OP, "*");
     push(calc->stack, elem);
 
-    if (0 != (ret = get_token(calc))) { up_used(calc); return ret; }
+    if (0 != (ret = get_token(calc))) { return ret; }
 
     switch (calc->cur_t)
     {
@@ -290,13 +288,13 @@ int term (Calc *calc)
 {
     int ret;
 
-    if (0 != (ret = get_token(calc))) { up_used(calc); return ret; }
+    if (0 != (ret = get_token(calc))) { return ret; }
 
     if (calc->cur_t == OPEN_BRACKET)
     {
         if (0 != (ret = mul(calc))) { return ret; }
 
-        if (0 != (ret = get_token(calc))) { up_used(calc); return ret; }
+        if (0 != (ret = get_token(calc))) { return ret; }
 
         switch (calc->cur_t)
         {
@@ -372,7 +370,7 @@ int mul (Calc *calc)
 {
     int ret;
 
-    if (0 != (ret = get_token(calc))) { up_used(calc); return ret; }
+    if (0 != (ret = get_token(calc))) { return ret; }
 
     if (calc->cur_t == END) { return EMPTY_MUL; }
 
@@ -429,12 +427,10 @@ int mul (Calc *calc)
         }
         case CLOSE_BRACKET:
         {
-            up_used(calc);
             return EMPTY_MUL;
         }
         default:
         {
-            up_used(calc);
             return MUL_UNEXPECT;
         }
     }

@@ -720,7 +720,7 @@ int process_new_vars(Calc *calc, InputVariable type)
                 sub_calc->cur_str[0] = '-';
             }
             up_used(calc);
-            get_token(calc);
+            if (sub_calc->cur_t != END) get_token(calc);
 
             if (calc->cur_t != END || ret != 0 || (sub_calc->cur_t != INT && sub_calc->cur_t != FLOAT))
             {
@@ -963,7 +963,7 @@ void print_elem(Elem *elem, FILE *stream)
             fprintf(stream, "INT: %lld\n", *(int_type*)(elem->data));
             break;
         case FLOAT_NUM:
-            fprintf(stream, "FLOAT: %g\n", *(float_type*)(elem->data));
+            fprintf(stream, "FLOAT: %f\n", *(float_type*)(elem->data));
             break;
         case BIN_OP:
             fprintf(stream, "BINARY operand: %s\n", elem->data);
@@ -1156,7 +1156,7 @@ void get_var (FILE *stream, char* dest, int max_len, int *what)
 }
 
 
-int miss_line(Calc *calc)
+long miss_line(Calc *calc)
 {
     long count = 0;
     int cur;
@@ -1225,9 +1225,16 @@ void print_var_set(VarSet *set, FILE *stream)
 
 void print_dict(Calc *calc, FILE *stream)
 {
-    fprintf(stream, "\nDictionary:\n");
-    print_var_set(calc->vars, stream);
-    fprintf(stream, "\n");
+    if (calc->vars->names->size <= 0)
+    {
+        fprintf(stream, "Variable dictionary is empty\n");
+    }
+    else
+    {
+        fprintf(stream, "\nDictionary:\n");
+        print_var_set(calc->vars, stream);
+        fprintf(stream, "\n");
+    }
 }
 
 

@@ -150,7 +150,7 @@ Elem* elem_str(StackType type, char *str);
 Elem* elem_int(int_type val);
 Elem* elem_float(float_type val);
 
-int miss_line(Calc *calc);
+long miss_line(Calc *calc);
 void put_str_back(Calc *calc, char *str);
 Elem* check_var (Calc *calc);
 int check_str_input(Calc *calc, char *src);

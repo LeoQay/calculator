@@ -5,6 +5,8 @@
 
 int main(void)
 {
+    int ret = 0;
+
     Calc *calc = init_calc();
 
     set_in_stream(calc, stdin);
@@ -12,9 +14,9 @@ int main(void)
     set_err_stream(calc, stderr);
 
     
-    int ret = ejudge_process_str(calc);
+    //ret = ejudge_process_str(calc);
 
-    //input_mgr(calc);
+    input_mgr(calc);
 
     delete_calc(calc);
 

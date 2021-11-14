@@ -2,23 +2,25 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#include <errno.h>
 
 #include "calc.h"
-
 
 Calc* init_calc (void)
 {
     Calc *calc = malloc(sizeof (Calc));
     calc->cur_t = END;
     calc->was_used = 1;
-    calc->stream = stdin;
+    calc->in_stream = stdin;
+    calc->out_stream = stdout;
+    calc->err_stream = stdout;
     calc->stack = init_stack();
     calc->result = NULL;
-
     calc->buffer = NULL;
-
     calc->vars = init_var_set();
+    calc->is_stack_good = 0;
 
+    /*
     Elem *name = elem_str(VAR_NAME, "E");
     Elem *value = elem_float(2.7182818284590452354);
     add_var(calc->vars, name, value);
@@ -26,7 +28,7 @@ Calc* init_calc (void)
     name = elem_str(VAR_NAME, "PI");
     value = elem_float(3.14159265358979323846);
     add_var(calc->vars, name, value);
-
+*/
     return calc;
 }
 
@@ -53,14 +55,49 @@ void input_mgr (Calc *calc)
     int is_end = 0;
 
     do {
-
         if (-1 == process_str(calc))
         {
-            printf("Finish state:\n");
-            print_dict(calc);
+            fprintf(calc->out_stream, "Finish state:\n");
+            print_dict(calc, calc->out_stream);
             is_end = 1;
         }
     } while (!is_end);
+}
+
+
+int ejudge_process_str(Calc *calc)
+{
+    int ret;
+
+    if (0 != (ret = build_postfix(calc)))
+    {
+        return 1;
+    }
+
+    if (0 != (ret = process_new_vars(calc, SIMPLE)))
+    {
+        return 2;
+    }
+
+    if (0 != (ret = exec_stack(calc)))
+    {
+        return 3;
+    }
+
+    if (calc->result->type == INT_NUM)
+    {
+        fprintf(calc->out_stream, "%lld\n", *(int_type*)&calc->result->data);
+    }
+    else if (calc->result->type == FLOAT_NUM)
+    {
+        fprintf(calc->out_stream, "%f\n", *(float_type*)&calc->result->data);
+    }
+    else
+    {
+        return 3;
+    }
+
+    return 0;
 }
 
 
@@ -70,7 +107,7 @@ int process_str (Calc *calc)
 
     Elem *var_name;
 
-    printf(">>>");
+    fprintf(calc->out_stream, ">>>");
 
     if (0 == check_str_input(calc, "@end"))
     {
@@ -79,16 +116,23 @@ int process_str (Calc *calc)
 
     if (0 == check_str_input(calc, "@dict"))
     {
-        print_dict(calc);
+        print_dict(calc, calc->out_stream);
         miss_line(calc);
         return 0;
     }
 
     if (0 == check_str_input(calc, "@save"))
     {
-        delete_stack(calc->buffer);
-        calc->buffer = copy_stack(calc->stack);
         miss_line(calc);
+
+        if (calc->is_stack_good == 1)
+        {
+            delete_stack(calc->buffer);
+            calc->buffer = copy_stack(calc->stack);
+        }
+        else
+            fprintf(calc->out_stream, "Stack is bad\n");
+
         return 0;
     }
 
@@ -98,9 +142,11 @@ int process_str (Calc *calc)
 
         if (calc->buffer == NULL)
         {
-            printf("Buffer is empty\n");
+            fprintf(calc->out_stream, "Buffer is empty\n");
             return 0;
         }
+
+        calc->is_stack_good = 1;
 
         delete_stack(calc->stack);
         calc->stack = copy_stack(calc->buffer);
@@ -110,25 +156,36 @@ int process_str (Calc *calc)
             error(calc, ret);
         }
 
-        print_elem(calc->result);
+        if (calc->result->type == ERROR)
+            print_elem(calc->result, calc->err_stream);
+        else
+            print_elem(calc->result, calc->out_stream);
         return 0;
     }
 
-
     if (NULL != (var_name = check_var(calc)))
     {
-        if (0 == build_postfix(calc))
+        if (0 != (ret = build_postfix(calc)))
         {
-            if (0 != (ret = exec_stack(calc)))
-            {
-                error(calc, ret);
-            }
+            calc->is_stack_good = 0;
+            error(calc, ret);
+        }
+        else calc->is_stack_good = 1;
+
+        if (ret == 0 && 0 != (ret = process_new_vars(calc, ALLOW_EXPR)))
+        {
+            error(calc, ret);
+        }
+
+        if (ret == 0 && 0 != (ret = exec_stack(calc)))
+        {
+            error(calc, ret);
         }
 
         if (calc->result->type != INT_NUM && calc->result->type != FLOAT_NUM)
         {
-            printf("I get not value\n");
-            print_elem(calc->result);
+            fprintf(calc->err_stream, "I get not value\n");
+            print_elem(calc->result, calc->err_stream);
         }
         else
         {
@@ -138,15 +195,27 @@ int process_str (Calc *calc)
     }
     else
     {
-        if (0 == build_postfix(calc))
+        if (0 != (ret = build_postfix(calc)))
         {
-            if (0 != (ret = exec_stack(calc)))
-            {
-                error(calc, ret);
-            }
+            calc->is_stack_good = 0;
+            error(calc, ret);
+        }
+        else calc->is_stack_good = 1;
+
+        if (ret == 0 && 0 != (ret = process_new_vars(calc, ALLOW_EXPR)))
+        {
+            error(calc, ret);
         }
 
-        print_elem(calc->result);
+        if (ret == 0 && 0 != (ret = exec_stack(calc)))
+        {
+            error(calc, ret);
+        }
+
+        if (calc->result->type == ERROR)
+            print_elem(calc->result, calc->err_stream);
+        else
+            print_elem(calc->result, calc->out_stream);
     }
 
     return 0;
@@ -206,12 +275,12 @@ void error(Calc *calc, int ret_code)
         case MISS_CLOSE_PARENT:
             calc->result = elem_str(ERROR, "Miss close bracket");
             break;
+        case EXEC_STACK_ERR:
         case MUL_UNEXPECT:
         case TERM_SPEC_ERR:
-            calc->result = elem_str(ERROR, "How you fo it");
+            calc->result = elem_str(ERROR, "How you do it");
             break;
         default:
-            printf("Ret code: %d\n", ret_code);
             calc->result = elem_str(ERROR, "Error!");
             break;
     }
@@ -412,7 +481,7 @@ int mul (Calc *calc)
         }
         case FLOAT:
         {
-            float_type val = strtold(calc->cur_str, NULL);
+            float_type val = strtod(calc->cur_str, NULL);
             Elem *elem = elem_float(val);
 
             push(calc->stack, elem);
@@ -448,7 +517,7 @@ int get_token(Calc *calc)
 
     int cur;
 
-    while (cur = fgetc(calc->stream), isspace(cur) && cur != '\n' && cur != EOF);
+    while (cur = fgetc(calc->in_stream), isspace(cur) && cur != '\n' && cur != EOF);
 
     if (cur == EOF || cur == '\n')
     {
@@ -459,9 +528,9 @@ int get_token(Calc *calc)
     else if (isalpha(cur) || cur == '_')
     {
         // read variable name
-        ungetc(cur, calc->stream);
+        ungetc(cur, calc->in_stream);
 
-        get_var(calc->stream, calc->cur_str, MAX_NAME_LEN, (int*)&(calc->cur_t));
+        get_var(calc->in_stream, calc->cur_str, MAX_NAME_LEN, (int*)&(calc->cur_t));
 
         if (calc->cur_t == -1)
         {
@@ -474,11 +543,11 @@ int get_token(Calc *calc)
     else if (isdigit(cur) || cur == '.')
     {
         // read number
-        ungetc(cur, calc->stream);
+        ungetc(cur, calc->in_stream);
 
-        get_num(calc->stream, calc->cur_str, MAX_TOKEN_LEN, (int*)&(calc->cur_t));
+        get_num(calc->in_stream, calc->cur_str, MAX_TOKEN_LEN, (int*)&(calc->cur_t));
 
-        if (calc->cur_t == -1)
+        if (calc->cur_t == -1 || (calc->cur_str[0] == '.' && strlen(calc->cur_str) == 1))
         {
             calc->cur_t = WRONG;
             return NUMBER_TOKEN_ERROR;
@@ -522,9 +591,21 @@ int get_token(Calc *calc)
 }
 
 
-void set_stream(Calc *calc, FILE *new_stream)
+void set_in_stream(Calc *calc, FILE *new_stream)
 {
-    calc->stream = new_stream;
+    calc->in_stream = new_stream;
+}
+
+
+void set_out_stream(Calc *calc, FILE *new_stream)
+{
+    calc->out_stream = new_stream;
+}
+
+
+void set_err_stream(Calc *calc, FILE *new_stream)
+{
+    calc->err_stream = new_stream;
 }
 
 
@@ -556,6 +637,115 @@ int down_used(Calc *calc)
 }
 
 
+int process_new_vars(Calc *calc, InputVariable type)
+{
+    Stack *buf = init_stack();
+
+    long rem = calc->vars->names->size;
+
+    for (long i = 0; i < calc->stack->size; i++)
+    {
+        if (calc->stack->stack[i]->type == VAR_NAME &&
+                -1 == find_var(calc->vars, calc->stack->stack[i]->data))
+        {
+            add_var(calc->vars, calc->stack->stack[i], NULL);
+            push(buf, calc->stack->stack[i]);
+        }
+    }
+
+    calc->vars->names->size = rem;
+    calc->vars->values->size = rem;
+
+    qsort(buf->stack, buf->size, sizeof(Elem*), (comp_t) comp_elem_str);
+
+    for (long i = 0; i < buf->size; i++)
+    {
+        Elem *elem = buf->stack[i];
+        Elem *value;
+
+        Calc *sub_calc = init_calc();
+        set_in_stream(sub_calc, calc->in_stream);
+        set_out_stream(sub_calc, calc->out_stream);
+        set_err_stream(sub_calc, calc->err_stream);
+
+        if (type == ALLOW_EXPR)
+        {
+            delete_var_set(sub_calc->vars);
+            sub_calc->vars = calc->vars;
+
+            do {
+                fprintf(sub_calc->out_stream, "%s=", elem->data);
+
+                clear(sub_calc->stack);
+
+                int ret;
+
+                if (0 != (ret = build_postfix(sub_calc)))
+                {
+                    error(calc, ret);
+                }
+
+                if (ret == 0 && 0 != (ret = process_new_vars(sub_calc, ALLOW_EXPR)))
+                {
+                    error(calc, ret);
+                }
+
+                if (ret == 0 && 0 != (ret = exec_stack(sub_calc)))
+                {
+                    error(calc, ret);
+                }
+
+                if (sub_calc->result->type == INT_NUM ||
+                    sub_calc->result->type == FLOAT_NUM)
+                {
+                    value = sub_calc->result;
+                    sub_calc->result = NULL;
+                    break;
+                }
+
+                fprintf(calc->err_stream, "It isn't INT or FLOAT value\n");
+                print_elem(sub_calc->result, sub_calc->err_stream);
+            } while(1);
+
+            sub_calc->vars = NULL;
+        }
+        else
+        {
+            int ret = get_token(sub_calc);
+            if (sub_calc->cur_t == MINUS)
+            {
+                up_used(sub_calc);
+                ret = get_token(sub_calc);
+                memmove(sub_calc->cur_str + 1, sub_calc->cur_str, strlen(sub_calc->cur_str));
+                sub_calc->cur_str[0] = '-';
+            }
+            up_used(calc);
+            get_token(calc);
+
+            if (calc->cur_t != END || ret != 0 || (sub_calc->cur_t != INT && sub_calc->cur_t != FLOAT))
+            {
+                delete_calc(sub_calc);
+                fill(buf, NULL);
+                delete_stack(buf);
+                return NUMBER_TOKEN_ERROR;
+            }
+
+            if (sub_calc->cur_t == INT)
+                value = elem_int(strtoll(sub_calc->cur_str, NULL, 10));
+            else
+                value = elem_float(strtod(sub_calc->cur_str, NULL));
+        }
+
+        add_var(calc->vars, copy_elem(buf->stack[i]), value);
+        delete_calc(sub_calc);
+    }
+
+    fill(buf, NULL);
+    delete_stack(buf);
+    return 0;
+}
+
+
 Elem *replace_var(Calc *calc, Elem *elem)
 {
     switch (elem->type)
@@ -565,51 +755,9 @@ Elem *replace_var(Calc *calc, Elem *elem)
             long ind = find_var(calc->vars, elem->data);
 
             if (ind != -1)
-            {
                 return calc->vars->values->stack[ind];
-            }
-
-            Elem *return_elem;
-
-            Calc *sub_calc = init_calc();
-            delete_var_set(sub_calc->vars);
-            sub_calc->vars = calc->vars;
-
-            set_stream(sub_calc, stdin);
-
-            do {
-                printf("%s=", elem->data);
-
-                clear(sub_calc->stack);
-
-                int ret;
-
-                if (0 == build_postfix(sub_calc))
-                {
-                    if (0 != (ret = exec_stack(sub_calc)))
-                    {
-                        error(calc, ret);
-                    }
-                }
-
-                if (sub_calc->result->type == INT_NUM ||
-                sub_calc->result->type == FLOAT_NUM)
-                {
-                    return_elem = sub_calc->result;
-                    sub_calc->result = NULL;
-                    break;
-                }
-
-                printf("It isn't INT or FLOAT value\n");
-                print_elem(sub_calc->result);
-            } while(1);
-
-            add_var(sub_calc->vars, elem_str(VAR_NAME, elem->data), return_elem);
-
-            sub_calc->vars = NULL;
-            delete_calc(sub_calc);
-
-            return return_elem;
+            else
+                return NULL;
         }
         default:
             return elem;
@@ -626,6 +774,11 @@ int exec_stack(Calc *calc)
         Elem *cur = calc->stack->stack[i];
 
         cur = replace_var(calc, cur);
+
+        if (cur == NULL)
+        {
+            return EXEC_STACK_ERR;
+        }
 
         switch (cur->type)
         {
@@ -671,6 +824,9 @@ int exec_stack(Calc *calc)
                     {
                         if ((fb < 0 && -1 * fb < comp) || (fb >= 0 && fb < comp))
                         {
+                            free(a);
+                            free(b);
+                            delete_stack(buf);
                             return ZERO_DIVIDE;
                         }
 
@@ -709,12 +865,26 @@ int exec_stack(Calc *calc)
                         fa *= fb;
                     } else if (0 == strcmp((char*)cur->data, "/"))
                     {
-                        if (fb == 0) return ZERO_DIVIDE;
+                        if (fb == 0)
+                        {
+                            free(a);
+                            free(b);
+                            delete_stack(buf);
+                            return ZERO_DIVIDE;
+                        }
 
                         fa /= fb;
                     } else
                     {
                         // unexpect
+                    }
+
+                    if (fa > 2147483647 || fa < -2147483648)
+                    {
+                        free(a);
+                        free(b);
+                        delete_stack(buf);
+                        return ERR_ERANGE;
                     }
 
                     *(int_type*)(a->data) = fa;
@@ -776,39 +946,39 @@ int exec_stack(Calc *calc)
 }
 
 
-void print_stack(Stack *stack)
+void print_stack(Stack *stack, FILE *stream)
 {
     for (long i = stack->size - 1; i >= 0; i--)
     {
-        print_elem(stack->stack[i]);
+        print_elem(stack->stack[i], stream);
     }
 }
 
 
-void print_elem(Elem *elem)
+void print_elem(Elem *elem, FILE *stream)
 {
     switch (elem->type)
     {
         case INT_NUM:
-            printf("INT: %lld\n", *(int_type*)(elem->data));
+            fprintf(stream, "INT: %lld\n", *(int_type*)(elem->data));
             break;
         case FLOAT_NUM:
-            printf("FLOAT: %Lg\n", *(float_type*)(elem->data));
+            fprintf(stream, "FLOAT: %g\n", *(float_type*)(elem->data));
             break;
         case BIN_OP:
-            printf("BINARY operand: %s\n", elem->data);
+            fprintf(stream, "BINARY operand: %s\n", elem->data);
             break;
         case UN_OP:
-            printf("UNARY operand: %s\n", elem->data);
+            fprintf(stream, "UNARY operand: %s\n", elem->data);
             break;
         case VAR_NAME:
-            printf("VAR: %s\n", elem->data);
+            fprintf(stream, "VAR: %s\n", elem->data);
             break;
         case ERROR:
-            printf("Type: ERROR\nMSG: %s\n", elem->data);
+            fprintf(stream, "Type: ERROR\nMSG: %s\n", elem->data);
             break;
         default:
-            printf("Trouble\n");
+            fprintf(stream, "Trouble\n");
     }
 }
 
@@ -894,6 +1064,9 @@ void get_num(FILE *stream, char* dest, int max_len, int *what)
     int is_end = 0;
     int before_dot = 1;
 
+    while (cur = fgetc(stream), isspace(cur) && cur != '\n' && cur != EOF);
+    if (cur != EOF) ungetc(cur, stream);
+
     while (!is_end)
     {
         if (len >= max_len)
@@ -922,16 +1095,33 @@ void get_num(FILE *stream, char* dest, int max_len, int *what)
 
     if (cur != EOF) ungetc(cur, stream);
 
+    dest[len] = '\0';
+
     if (len == 0)
     {
-        dest[0] = '\0';
         *what = -1;
         return;
     }
 
+    char *end;
     *what = before_dot ? INT : FLOAT;
+    if (*what == INT)
+    {
+        int_type val = strtoll(dest, &end, 10);
+        if (val > 2147483647ll || val < -2147483648ll)
+        {
+            *what = -1;
+            return;
+        }
+    }
+    else
+        strtod(dest, &end);
 
-    dest[len] = '\0';
+    if (errno == ERANGE)
+    {
+        *what = -1;
+        return;
+    }
 }
 
 
@@ -966,11 +1156,17 @@ void get_var (FILE *stream, char* dest, int max_len, int *what)
 }
 
 
-void miss_line(Calc *calc)
+int miss_line(Calc *calc)
 {
+    long count = 0;
     int cur;
 
-    while (cur = getc(calc->stream), cur != '\n' && cur != EOF);
+    while (cur = getc(calc->in_stream), cur != '\n' && cur != EOF)
+    {
+        count++;
+    }
+
+    return count;
 }
 
 
@@ -980,7 +1176,7 @@ void put_str_back(Calc *calc, char *str)
 
     for (long i = len - 1; i >= 0; i--)
     {
-        ungetc(str[i], calc->stream);
+        ungetc(str[i], calc->in_stream);
     }
 }
 
@@ -1014,24 +1210,24 @@ Elem* check_var (Calc *calc)
 }
 
 
-void print_var_set(VarSet *set)
+void print_var_set(VarSet *set, FILE *stream)
 {
     long size = set->names->size;
 
     for (int i = 0; i < size; i++)
     {
-        printf("%d. NAME: %*s, ", i + 1, MAX_NAME_LEN, set->names->stack[i]->data);
-        printf("VALUE: ");
-        print_elem(set->values->stack[i]);
+        fprintf(stream, "%*d. NAME: %*s, ", 3, i + 1, MAX_NAME_LEN, set->names->stack[i]->data);
+        fprintf(stream, "VALUE: ");
+        print_elem(set->values->stack[i], stream);
     }
 }
 
 
-void print_dict(Calc *calc)
+void print_dict(Calc *calc, FILE *stream)
 {
-    printf("\nDictionary:\n");
-    print_var_set(calc->vars);
-    printf("\n");
+    fprintf(stream, "\nDictionary:\n");
+    print_var_set(calc->vars, stream);
+    fprintf(stream, "\n");
 }
 
 
@@ -1041,14 +1237,14 @@ int check_str_input(Calc *calc, char *src)
 
     int cur;
 
-    while (cur = fgetc(calc->stream), isspace(cur) && cur != '\n' && cur != EOF);
+    while (cur = fgetc(calc->in_stream), isspace(cur) && cur != '\n' && cur != EOF);
 
     ulong req_len = strlen(src);
     int len;
 
     if (cur == '\n')
     {
-        ungetc('\n', calc->stream);
+        ungetc('\n', calc->in_stream);
         return -1;
     } else if (cur == EOF)
     {
@@ -1059,14 +1255,14 @@ int check_str_input(Calc *calc, char *src)
         len = 1;
     }
 
-    while (cur = fgetc(calc->stream), len < req_len && cur != '\n' && cur != EOF)
+    while (cur = fgetc(calc->in_stream), len < req_len && cur != '\n' && cur != EOF)
     {
         buf[len++] = (char) cur;
     }
 
     buf[len] = '\0';
 
-    if (cur != EOF) ungetc(cur, calc->stream);
+    if (cur != EOF) ungetc(cur, calc->in_stream);
 
     if (len < req_len || 0 != strcmp(src, buf))
     {
@@ -1095,4 +1291,10 @@ Stack* copy_stack(Stack *stack)
     }
 
     return new_stack;
+}
+
+
+int comp_elem_str(Elem **a, Elem **b)
+{
+    return strcmp((*a)->data, (*b)->data);
 }

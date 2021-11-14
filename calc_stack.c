@@ -89,3 +89,12 @@ void clear(Stack *stack)
 
     stack->stack = realloc(stack->stack, sizeof(Elem*) * stack->r_size);
 }
+
+
+void fill(Stack *stack, Elem *elem)
+{
+    for (long i = 0; i < stack->size; i++)
+    {
+        stack->stack[i] = elem;
+    }
+}

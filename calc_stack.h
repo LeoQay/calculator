@@ -28,4 +28,5 @@ void push(Stack *stack, Elem *elem);
 Elem* top(Stack *stack);
 void pop(Stack *stack);
 void clear(Stack *stack);
+void fill(Stack *stack, Elem *elem);
 

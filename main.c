@@ -13,9 +13,6 @@ int main(void)
     set_out_stream(calc, stdout);
     set_err_stream(calc, stderr);
 
-    
-    //ret = ejudge_process_str(calc);
-
     input_mgr(calc);
 
     delete_calc(calc);

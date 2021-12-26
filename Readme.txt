@@ -1,12 +1,9 @@
-Dmitriev Leonid 207
+Simple realization of calculator
 
-Originally, task was decided with functions
-that not need in tests now.
+make: to make project
+make run: to run
 
-For the tests, a simplified function was created that calls
-the necessary functions that have already been written.
-
-Such as:
+Some information about commands and syntax:
 
 (@end)
 To stop endless cycle
@@ -77,19 +74,19 @@ SIMPLE CALC LANGUAGE
 
 <expression> = <term> [<3L sign> <term>]
 
-<1L sign> = <+>, <-> // unary
-<2L sign> = <*>, </> // binary
-<3L sign> = <+>, <-> // binary
+<1L sign> = {'+', '-'} // unary
+<2L sign> = {'*', '/'} // binary
+<3L sign> = {'+', '-'} // binary
 
 <term> = <term spec> [<term cont>]
 <term> = <mul> [<term cont>]
 
-<term cont> = <2L sign> <mul>
-<term cont> = <term spec>
-
 <term spec> = (<expression>)<val>
 <term spec> = (<expression>)<variable>
 <term spec> = (<expression>)
+
+<term cont> = <2L sign> <mul>
+<term cont> = <term spec>
 
 <mul> = <1L sign> <mul>
 <mul> = (<expression>)
@@ -107,6 +104,6 @@ SIMPLE CALC LANGUAGE
 
 <variable> = <start correct sym> [<correct sym>]
 
-<start correct sym> = <word> or '_'
-<correct sym> = <word> or <num> or '_'
-<word> = {a .. z, A .. Z}
+<start correct sym> = <letter> or '_'
+<correct sym> = <letter> or <num> or '_'
+<letter> = {a...z, A...Z}

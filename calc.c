@@ -20,15 +20,6 @@ Calc* init_calc (void)
     calc->vars = init_var_set();
     calc->is_stack_good = 0;
 
-    /*
-    Elem *name = elem_str(VAR_NAME, "E");
-    Elem *value = elem_float(2.7182818284590452354);
-    add_var(calc->vars, name, value);
-
-    name = elem_str(VAR_NAME, "PI");
-    value = elem_float(3.14159265358979323846);
-    add_var(calc->vars, name, value);
-*/
     return calc;
 }
 
@@ -716,7 +707,7 @@ int process_new_vars(Calc *calc, InputVariable type)
             {
                 up_used(sub_calc);
                 ret = get_token(sub_calc);
-                memmove(sub_calc->cur_str + 1, sub_calc->cur_str, strlen(sub_calc->cur_str));
+                memmove(sub_calc->cur_str + 1, sub_calc->cur_str, strlen(sub_calc->cur_str) + 1);
                 sub_calc->cur_str[0] = '-';
             }
             up_used(calc);
